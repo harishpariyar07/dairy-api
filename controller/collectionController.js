@@ -214,7 +214,7 @@ const deleteCollection = async (req, res) => {
             return res.status(404).send({ message: 'No user found' });
         }
 
-        const farmer = await Farmer.findOne({ userId: user._id, farmerId });
+        const farmer = await Farmer.findOne({ userId: user._id, farmerId: id });
 
         if (!farmer) {
             return res.status(400).json({
