@@ -196,11 +196,12 @@ const editPayment = async (req, res) => {
 
     const ledger = await Ledger.findOne({
       farmerId: payment.farmerId,
-      date: payment.date
+      date: payment.date,
+      debit: previousAmount
     });
 
     if (ledger) {
-      ledger.debit = (ledger.debit - previousAmount + payment.amountToPay).toFixed(2);
+      ledger.debit = Number(ledger.debit - previousAmount + payment.amountToPay).toFixed(2);
       ledger.remarks = remarks || ledger.remarks;
       await ledger.save();
     }
@@ -230,8 +231,10 @@ const deletePayment = async (req, res) => {
 
 
     const ledger = await Ledger.findOne({
-      farmerId: payment.farmerId, date: payment.date
+      farmerId: payment.farmerId, date: payment.date, debit: paymentAmount
     });
+
+    console.log(ledger)
 
     if (ledger) {
       await Ledger.findByIdAndDelete(ledger._id);
@@ -243,7 +246,7 @@ const deletePayment = async (req, res) => {
       });
 
     if (farmer) {
-      farmer.debit = (farmer.debit - paymentAmount).toFixed(2);
+      farmer.debit = Number(farmer.debit - paymentAmount).toFixed(2);
       await farmer.save();
     }
 

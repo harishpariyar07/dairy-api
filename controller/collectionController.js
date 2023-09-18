@@ -9,6 +9,7 @@ const addCollection = async (req, res) => {
     try {
         const { username } = req.params;
         const { farmerId, collectionDate, qty, fat, snf, rate, amount, shift } = req.body;
+        const formattedDate = new Date(collectionDate);
 
         if (!username || !farmerId || !collectionDate || !qty || qty === 0 || !rate || rate === 0 || !amount || amount === 0) {
             return res.status(400).json({
@@ -68,8 +69,15 @@ const addCollection = async (req, res) => {
         const report = await Report.findOne({
             username: user.username,
             shift: shift,
-            date: collectionDate
-        });
+            $expr: {
+              $and: [
+                { $eq: [{ $dayOfMonth: '$date' }, { $dayOfMonth: formattedDate }] },
+                { $eq: [{ $month: '$date' }, { $month: formattedDate }] },
+                { $eq: [{ $year: '$date' }, { $year: formattedDate }] }
+              ]
+            }
+          });
+          
 
         if (!report) {
             let tempMilk = 0, tempFat = 0, tempSNF = 0;
@@ -208,18 +216,11 @@ const deleteCollection = async (req, res) => {
     try {
         const { id, username } = req.params;
 
+
         const user = await User.findOne({ username });
 
         if (!user) {
             return res.status(404).send({ message: 'No user found' });
-        }
-
-        const farmer = await Farmer.findOne({ userId: user._id, farmerId: id });
-
-        if (!farmer) {
-            return res.status(400).json({
-                status: 'Invalid Farmer ID or The Farmer does not belong to the User',
-            });
         }
 
         const collection = await Collection.findById(id);
@@ -233,6 +234,15 @@ const deleteCollection = async (req, res) => {
         const ledger = await Ledger.findOne({ collectionId: id });
         if (ledger) {
             await Ledger.findByIdAndDelete(ledger._id);
+        }
+
+        const farmer = await Farmer.findOne({ userId: user._id, farmerId: collection.farmerId });
+
+
+        if (!farmer) {
+            return res.status(400).json({
+                status: 'Invalid Farmer ID or The Farmer does not belong to the User',
+            });
         }
 
         farmer.credit = (farmer.credit - Number(collection.amount)).toFixed(2);

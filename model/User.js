@@ -30,6 +30,10 @@ const userSchema = new mongoose.Schema({
         allowRateChart: { type: String, default: 'Not Allow', enum: ['Allow', 'Not Allow'] },
         allowDues: { type: String, default: 'Not Allow', enum: ['Allow', 'Not Allow'] },
     },
+    farmersCount: {
+        type: Number,
+        default: 0
+    },
     adminId: {
         type: mongoose.Schema.Types.ObjectId,
         required: [true, 'Admin ID missing'],

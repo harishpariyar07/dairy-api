@@ -43,6 +43,9 @@ const addFarmerAsAdmin = async (req, res) => {
 
         const farmer = await Farmer.create({ ...req.body, userId: user._id });
 
+        user.farmersCount = user.farmersCount + 1
+        await user.save()
+
         return res.status(201).json({
             message: 'Farmer added successfully',
             data: farmer,
@@ -98,6 +101,8 @@ const addFarmerAsUser = async (req, res) => {
         }
 
         const farmer = await Farmer.create({ ...req.body, userId: user._id });
+        user.farmersCount = user.farmersCount + 1
+        await user.save()
 
         return res.status(201).json({
             message: 'Farmer added successfully',
