@@ -283,8 +283,6 @@ const updateCollection = async (req, res) => {
             if (!report) {
                 return res.status(404).json({ message: 'Report not found' });
             }
-
-            console.log(report)
     
             report.totalMilk = (report.totalMilk - Number(collection.qty) + Number(qty)).toFixed(2);
             report.totalAmount = (report.totalAmount - Number(collection.amount) + Number(amount)).toFixed(2);
@@ -296,8 +294,6 @@ const updateCollection = async (req, res) => {
                 report.avgFat = (report.tempFat / report.tempMilk).toFixed(2);
                 report.avgSNF = (report.tempSNF / report.tempMilk).toFixed(2);
             }
-
-            console.log(report)
     
             await report.save();
         }
