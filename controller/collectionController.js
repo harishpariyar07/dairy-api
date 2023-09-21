@@ -1,3 +1,4 @@
+const { compareDate } = require('../helpers/compareDate');
 const Collection = require('../model/Collection')
 const Farmer = require('../model/Farmer');
 const Ledger = require('../model/Ledger');
@@ -177,49 +178,89 @@ const updateCollection = async (req, res) => {
             farmer.credit = farmer.credit - Number(collection.amount) + Number(amount);
         }
 
-        if (collection.shift !== shift || collection.collectionDate !== collectionDate) {
+        
+        if (collection.shift !== shift || compareDate(collection.collectionDate, collectionDate) === false) {
             // new report
-            const report1 = await Report.findOne({
+            let report1 = await Report.findOne({
                 username: user.username,
                 shift: shift,
-                date: collectionDate
-            });
+                $expr: {
+                    $and: [
+                      { $eq: [{ $dayOfMonth: '$date' }, { $dayOfMonth: new Date(collectionDate) }] },
+                      { $eq: [{ $month: '$date' }, { $month: new Date(collectionDate) }] },
+                      { $eq: [{ $year: '$date' }, { $year: new Date(collectionDate) }] }
+                    ]
+                  }            
+                });
             
             // original report
-            const report2 = await Report.findOne({
+            let report2 = await Report.findOne({
                 username: user.username,
                 shift: collection.shift,
-                date: collection.collectionDate
-            });
-
-            if (!report1) {
-                return res.status(404).json({ message: 'New report not found' });
-            }
+                $expr: {
+                    $and: [
+                      { $eq: [{ $dayOfMonth: '$date' }, { $dayOfMonth: new Date(collection.collectionDate) }] },
+                      { $eq: [{ $month: '$date' }, { $month: new Date(collection.collectionDate) }] },
+                      { $eq: [{ $year: '$date' }, { $year: new Date(collection.collectionDate) }] }
+                    ]
+                  }   
+                });
 
             if (!report2) {
                 return res.status(404).json({ message: 'Original report not found' });
             }
             
-            report1.totalMilk = (report1.totalMilk + Number(qty)).toFixed(2);
-            report1.totalAmount = (report1.totalAmount + Number(amount)).toFixed(2);
-            if (fat !== 0 && snf !== 0) {
-                report1.tempMilk = (report1.tempMilk + Number(qty)).toFixed(2);
-                report1.tempFat = (report1.tempFat + Number(fat * qty)).toFixed(2);
-                report1.tempSNF = (report1.tempSNF + Number(snf * qty)).toFixed(2);
+            // if no collection is done on the updated day and shift
+            // generate new report
+            if (!report1) {
+                let tempMilk = 0, tempFat = 0, tempSNF = 0;
+                if (fat !== 0 && snf !== 0) {
+                    tempMilk = qty;
+                    tempFat = Number(fat * qty).toFixed(2);
+                    tempSNF = Number(snf * qty).toFixed(2);
+                }
 
-                report1.avgFat = (report1.tempFat / report1.tempMilk).toFixed(2);
-                report1.avgSNF = (report1.tempSNF / report1.tempMilk).toFixed(2);
+                report1 = new Report({
+                    userId: user.userId,
+                    username: username,
+                    contactPerson: user.contactPerson,
+                    date: collectionDate,
+                    shift: shift,
+                    totalMilk: qty,
+                    avgFat: Number(fat),
+                    avgSNF: Number(snf),
+                    totalAmount: amount,
+                    tempMilk: tempMilk,
+                    tempFat: tempFat,
+                    tempSNF: tempSNF,
+                    adminId: user.adminId
+                });
+            }
+            // else update the report
+            else
+            {
+                report1.totalMilk = (report1.totalMilk + Number(qty)).toFixed(2);
+                report1.totalAmount = (report1.totalAmount + Number(amount)).toFixed(2);
+                if (fat !== 0 && snf !== 0) {
+                    report1.tempMilk = (report1.tempMilk + Number(qty)).toFixed(2);
+                    report1.tempFat = (report1.tempFat + Number(fat * qty)).toFixed(2);
+                    report1.tempSNF = (report1.tempSNF + Number(snf * qty)).toFixed(2);
+                    
+                    report1.avgFat = (report1.tempFat / report1.tempMilk).toFixed(2);
+                    report1.avgSNF = (report1.tempSNF / report1.tempMilk).toFixed(2);
+                }
             }
 
+            // update the original report
             report2.totalMilk = (report2.totalMilk - Number(collection.qty)).toFixed(2);
             report2.totalAmount = (report2.totalAmount - Number(collection.amount)).toFixed(2);
             if (collection.fat !== 0 && collection.snf !== 0) {
                 report2.tempMilk = (report2.tempMilk - Number(collection.qty)).toFixed(2);
                 report2.tempFat = (report2.tempFat - Number(collection.fat * collection.qty)).toFixed(2);
                 report2.tempSNF = (report2.tempSNF - Number(collection.snf * collection.qty)).toFixed(2);
-
-                report2.avgFat = (report2.tempFat / report2.tempMilk).toFixed(2);
-                report2.avgSNF = (report2.tempSNF / report2.tempMilk).toFixed(2);
+                
+                report2.avgFat = report2.tempMilk > 0 ? (report2.tempFat / report2.tempMilk).toFixed(2) : 0;
+                report2.avgSNF = report2.tempMilk > 0 ? (report2.tempSNF / report2.tempMilk).toFixed(2) : 0;
             }
 
             await report1.save();
@@ -230,12 +271,20 @@ const updateCollection = async (req, res) => {
             const report = await Report.findOne({
                 username: user.username,
                 shift: shift,
-                date: collectionDate
+                $expr: {
+                    $and: [
+                      { $eq: [{ $dayOfMonth: '$date' }, { $dayOfMonth: new Date(collection.collectionDate) }] },
+                      { $eq: [{ $month: '$date' }, { $month: new Date(collection.collectionDate) }] },
+                      { $eq: [{ $year: '$date' }, { $year: new Date(collection.collectionDate) }] }
+                    ]
+                  }   
             });
 
             if (!report) {
                 return res.status(404).json({ message: 'Report not found' });
             }
+
+            console.log(report)
     
             report.totalMilk = (report.totalMilk - Number(collection.qty) + Number(qty)).toFixed(2);
             report.totalAmount = (report.totalAmount - Number(collection.amount) + Number(amount)).toFixed(2);
@@ -247,6 +296,8 @@ const updateCollection = async (req, res) => {
                 report.avgFat = (report.tempFat / report.tempMilk).toFixed(2);
                 report.avgSNF = (report.tempSNF / report.tempMilk).toFixed(2);
             }
+
+            console.log(report)
     
             await report.save();
         }
@@ -290,8 +341,9 @@ const updateCollection = async (req, res) => {
 
 const deleteCollection = async (req, res) => {
     try {
-        const { id, username, shift, date } = req.params;
-
+        const { id, username} = req.params;
+        const { date, shift } = req.query;
+        const formattedDate = new Date(date);
 
         const user = await User.findOne({ username });
 
@@ -321,23 +373,33 @@ const deleteCollection = async (req, res) => {
             });
         }
 
-        const report = Report.findOne({username, shift, date})
-        if (!report) {
-            return res.status(404).json({ message: 'Report not found' });
+        const report = await Report.findOne({
+            username,
+            shift, 
+            $expr: {
+                $and: [
+                  { $eq: [{ $dayOfMonth: '$date' }, { $dayOfMonth: formattedDate }] },
+                  { $eq: [{ $month: '$date' }, { $month: formattedDate }] },
+                  { $eq: [{ $year: '$date' }, { $year: formattedDate }] }
+                ]
+              }
+        })
+
+        if (report)
+        {
+            report.totalMilk = (report.totalMilk - Number(collection.qty)).toFixed(2);
+            report.totalAmount = (report.totalAmount - Number(collection.amount)).toFixed(2);
+            if (collection.fat !== 0 && collection.snf !== 0) {
+                report.tempMilk = (report.tempMilk - Number(collection.qty)).toFixed(2);
+                report.tempFat = (report.tempFat - Number(collection.fat * collection.qty)).toFixed(2);
+                report.tempSNF = (report.tempSNF - Number(collection.snf * collection.qty)).toFixed(2);
+
+                report.avgFat = report.tempMilk > 0 ? (report.tempFat / report.tempMilk).toFixed(2) : 0;
+                report.avgSNF = report.tempMilk > 0 ? (report.tempSNF / report.tempMilk).toFixed(2) : 0;
+            }
+
+            await report.save();
         }
-
-        report.totalMilk = (report.totalMilk - Number(collection.qty)).toFixed(2);
-        report.totalAmount = (report.totalAmount - Number(collection.amount)).toFixed(2);
-        if (collection.fat !== 0 && collection.snf !== 0) {
-            report.tempMilk = (report.tempMilk - Number(collection.qty)).toFixed(2);
-            report.tempFat = (report.tempFat - Number(collection.fat * collection.qty)).toFixed(2);
-            report.tempSNF = (report.tempSNF - Number(collection.snf * collection.qty)).toFixed(2);
-
-            report.avgFat = (report.tempFat / report.tempMilk).toFixed(2);
-            report.avgSNF = (report.tempSNF / report.tempMilk).toFixed(2);
-        }
-
-        await report.save();
 
         farmer.credit = (farmer.credit - Number(collection.amount)).toFixed(2);
         await farmer.save();
