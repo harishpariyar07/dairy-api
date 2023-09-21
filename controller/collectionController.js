@@ -177,6 +177,80 @@ const updateCollection = async (req, res) => {
             farmer.credit = farmer.credit - Number(collection.amount) + Number(amount);
         }
 
+        if (collection.shift !== shift || collection.collectionDate !== collectionDate) {
+            // new report
+            const report1 = await Report.findOne({
+                username: user.username,
+                shift: shift,
+                date: collectionDate
+            });
+            
+            // original report
+            const report2 = await Report.findOne({
+                username: user.username,
+                shift: collection.shift,
+                date: collection.collectionDate
+            });
+
+            if (!report1) {
+                return res.status(404).json({ message: 'New report not found' });
+            }
+
+            if (!report2) {
+                return res.status(404).json({ message: 'Original report not found' });
+            }
+            
+            report1.totalMilk = (report1.totalMilk + Number(qty)).toFixed(2);
+            report1.totalAmount = (report1.totalAmount + Number(amount)).toFixed(2);
+            if (fat !== 0 && snf !== 0) {
+                report1.tempMilk = (report1.tempMilk + Number(qty)).toFixed(2);
+                report1.tempFat = (report1.tempFat + Number(fat * qty)).toFixed(2);
+                report1.tempSNF = (report1.tempSNF + Number(snf * qty)).toFixed(2);
+
+                report1.avgFat = (report1.tempFat / report1.tempMilk).toFixed(2);
+                report1.avgSNF = (report1.tempSNF / report1.tempMilk).toFixed(2);
+            }
+
+            report2.totalMilk = (report2.totalMilk - Number(collection.qty)).toFixed(2);
+            report2.totalAmount = (report2.totalAmount - Number(collection.amount)).toFixed(2);
+            if (collection.fat !== 0 && collection.snf !== 0) {
+                report2.tempMilk = (report2.tempMilk - Number(collection.qty)).toFixed(2);
+                report2.tempFat = (report2.tempFat - Number(collection.fat * collection.qty)).toFixed(2);
+                report2.tempSNF = (report2.tempSNF - Number(collection.snf * collection.qty)).toFixed(2);
+
+                report2.avgFat = (report2.tempFat / report2.tempMilk).toFixed(2);
+                report2.avgSNF = (report2.tempSNF / report2.tempMilk).toFixed(2);
+            }
+
+            await report1.save();
+            await report2.save();
+        }
+        else
+        {
+            const report = await Report.findOne({
+                username: user.username,
+                shift: shift,
+                date: collectionDate
+            });
+
+            if (!report) {
+                return res.status(404).json({ message: 'Report not found' });
+            }
+    
+            report.totalMilk = (report.totalMilk - Number(collection.qty) + Number(qty)).toFixed(2);
+            report.totalAmount = (report.totalAmount - Number(collection.amount) + Number(amount)).toFixed(2);
+            if (collection.fat !== 0 && collection.snf !== 0) {
+                report.tempMilk = (report.tempMilk - Number(collection.qty) + Number(qty)).toFixed(2);
+                report.tempFat = (report.tempFat - Number(collection.fat * collection.qty) + Number(fat * qty)).toFixed(2);
+                report.tempSNF = (report.tempSNF - Number(collection.snf * collection.qty) + Number(snf * qty)).toFixed(2);
+    
+                report.avgFat = (report.tempFat / report.tempMilk).toFixed(2);
+                report.avgSNF = (report.tempSNF / report.tempMilk).toFixed(2);
+            }
+    
+            await report.save();
+        }
+
         collection.amount = amount || collection.amount;
         collection.collectionDate = collectionDate || collection.collectionDate;
         collection.fat = fat || collection.fat;
@@ -197,29 +271,9 @@ const updateCollection = async (req, res) => {
         ledger.qty = qty || ledger.qty;
         ledger.snf = snf || ledger.snf;
         ledger.shift = shift || ledger.shift
+        
+        
 
-        const report = await Report.findOne({
-            username: user.username,
-            shift: shift,
-            date: collectionDate
-        });
-
-        if (!report) {
-            return res.status(404).json({ message: 'Report not found' });
-        }
-
-        report.totalMilk = (report.totalMilk - Number(collection.qty) + Number(qty)).toFixed(2);
-        report.totalAmount = (report.totalAmount - Number(collection.amount) + Number(amount)).toFixed(2);
-        if (collection.fat !== 0 && collection.snf !== 0) {
-            report.tempMilk = (report.tempMilk - Number(collection.qty) + Number(qty)).toFixed(2);
-            report.tempFat = (report.tempFat - Number(collection.fat * collection.qty) + Number(fat * qty)).toFixed(2);
-            report.tempSNF = (report.tempSNF - Number(collection.snf * collection.qty) + Number(snf * qty)).toFixed(2);
-
-            report.avgFat = (report.tempFat / report.tempMilk).toFixed(2);
-            report.avgSNF = (report.tempSNF / report.tempMilk).toFixed(2);
-        }
-
-        await report.save();
         await collection.save();
         await ledger.save();
         await farmer.save();
