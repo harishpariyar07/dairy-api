@@ -83,8 +83,8 @@ const addCollection = async (req, res) => {
             let tempMilk = 0, tempFat = 0, tempSNF = 0;
             if (fat !== 0 && snf !== 0) {
                 tempMilk = qty;
-                tempFat = fat * qty;
-                tempSNF = snf * qty;
+                tempFat = Number(fat * qty).toFixed(2);
+                tempSNF = Number(snf * qty).toFixed(2);
             }
             await Report.create({
                 userId: user.userId,
@@ -103,12 +103,12 @@ const addCollection = async (req, res) => {
             });
         } else {
             let tempMilk = 0, tempFat = 0, tempSNF = 0;
-            report.totalMilk = report.totalMilk + Number(qty);
-            report.totalAmount = report.totalAmount + Number(amount);
+            report.totalMilk = (report.totalMilk + Number(qty)).toFixed(2);
+            report.totalAmount = (report.totalAmount + Number(amount)).toFixed(2);
             if (fat !== 0 && snf !== 0) {
-                tempMilk = report.tempMilk + Number(qty);
-                tempFat = report.tempFat + Number(fat * qty);
-                tempSNF = report.tempSNF + Number(snf * qty);
+                tempMilk = Number(report.tempMilk + Number(qty)).toFixed(2);
+                tempFat = Number(report.tempFat + Number(fat * qty)).toFixed(2);
+                tempSNF = Number(report.tempSNF + Number(snf * qty)).toFixed(2);
 
                 report.avgFat = (tempFat / tempMilk).toFixed(2);
                 report.avgSNF = (tempSNF / tempMilk).toFixed(2);
@@ -198,6 +198,28 @@ const updateCollection = async (req, res) => {
         ledger.snf = snf || ledger.snf;
         ledger.shift = shift || ledger.shift
 
+        const report = await Report.findOne({
+            username: user.username,
+            shift: shift,
+            date: collectionDate
+        });
+
+        if (!report) {
+            return res.status(404).json({ message: 'Report not found' });
+        }
+
+        report.totalMilk = (report.totalMilk - Number(collection.qty) + Number(qty)).toFixed(2);
+        report.totalAmount = (report.totalAmount - Number(collection.amount) + Number(amount)).toFixed(2);
+        if (collection.fat !== 0 && collection.snf !== 0) {
+            report.tempMilk = (report.tempMilk - Number(collection.qty) + Number(qty)).toFixed(2);
+            report.tempFat = (report.tempFat - Number(collection.fat * collection.qty) + Number(fat * qty)).toFixed(2);
+            report.tempSNF = (report.tempSNF - Number(collection.snf * collection.qty) + Number(snf * qty)).toFixed(2);
+
+            report.avgFat = (report.tempFat / report.tempMilk).toFixed(2);
+            report.avgSNF = (report.tempSNF / report.tempMilk).toFixed(2);
+        }
+
+        await report.save();
         await collection.save();
         await ledger.save();
         await farmer.save();
@@ -214,7 +236,7 @@ const updateCollection = async (req, res) => {
 
 const deleteCollection = async (req, res) => {
     try {
-        const { id, username } = req.params;
+        const { id, username, shift, date } = req.params;
 
 
         const user = await User.findOne({ username });
@@ -241,9 +263,27 @@ const deleteCollection = async (req, res) => {
 
         if (!farmer) {
             return res.status(400).json({
-                status: 'Invalid Farmer ID or The Farmer does not belong to the User',
+                message: 'Invalid Farmer ID or The Farmer does not belong to the User',
             });
         }
+
+        const report = Report.findOne({username, shift, date})
+        if (!report) {
+            return res.status(404).json({ message: 'Report not found' });
+        }
+
+        report.totalMilk = (report.totalMilk - Number(collection.qty)).toFixed(2);
+        report.totalAmount = (report.totalAmount - Number(collection.amount)).toFixed(2);
+        if (collection.fat !== 0 && collection.snf !== 0) {
+            report.tempMilk = (report.tempMilk - Number(collection.qty)).toFixed(2);
+            report.tempFat = (report.tempFat - Number(collection.fat * collection.qty)).toFixed(2);
+            report.tempSNF = (report.tempSNF - Number(collection.snf * collection.qty)).toFixed(2);
+
+            report.avgFat = (report.tempFat / report.tempMilk).toFixed(2);
+            report.avgSNF = (report.tempSNF / report.tempMilk).toFixed(2);
+        }
+
+        await report.save();
 
         farmer.credit = (farmer.credit - Number(collection.amount)).toFixed(2);
         await farmer.save();

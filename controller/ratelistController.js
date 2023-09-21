@@ -315,7 +315,7 @@ const deleteRateList = async (req, res) => {
 
 const getRate = async (req, res) => {
     try {
-        const { fat, snf } = req.query;
+        const { fat, snf, shift } = req.query;
         const { farmerId } = req.params;
         const username = req.params.username;
         const user = await User.findOne({ username });
@@ -367,7 +367,7 @@ const getRate = async (req, res) => {
                     });
             }
         } else {
-            rate = await Collection.findOne({ userId: user._id, farmerId }).sort({ collectionDate: -1 }).limit(1).then((collection) => collection.rate).catch((err) => {
+            rate = await Collection.findOne({ userId: user._id, farmerId, shift }).sort({collectionDate: -1 , createdAt: -1}).limit(1).then((collection) => collection.rate).catch((err) => {
                 console.log(err)
             });
         }
