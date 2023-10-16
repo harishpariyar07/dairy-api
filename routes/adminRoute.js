@@ -10,6 +10,7 @@ const { getAllDuesByAdmin, getPreviousDues } = require('../controller/duesContro
 const { authAdmin } = require('../middleware/auth');
 const { addCollection, getAllCollectionsForDate, getAverageFatByAdmin, getAverageSNFByAdmin, getTotalMilkByAdmin, updateCollection, getCollectionById, deleteCollection, getAllCollectionsForAdmin } = require('../controller/collectionController');
 const { getBillDetails, addBillDetails, updateBillDetails } = require('../controller/billController');
+const getReportByShift = require('../controller/reportController');
 
 // AUTHENTICATION 
 router.post('/signup', register);
@@ -65,5 +66,8 @@ router.get('/:username/dues/:farmerId/prev', authAdmin, getPreviousDues)
 router.get('/bill', authAdmin, getBillDetails)
 router.put('/bill', authAdmin, updateBillDetails)
 router.post('/bill', authAdmin, addBillDetails)
+
+// REPORT ROUTES
+router.get('/:username/report', authAdmin, getReportByShift)
 
 module.exports = router;
