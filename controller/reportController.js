@@ -23,7 +23,7 @@ const getReportByShift = async (req, res) => {
       },
     });
 
-    console.log(report)
+    // console.log(report)
 
     return res.status(200).json(report)
   } catch (err) {

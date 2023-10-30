@@ -11,6 +11,8 @@ const addCollection = async (req, res) => {
         const { username } = req.params;
         const { farmerId, collectionDate, qty, fat, snf, rate, amount, shift } = req.body;
         const formattedDate = new Date(collectionDate);
+        let {isChanged} = req.query
+        let previousBalance
 
         if (!username || !farmerId || !collectionDate || !qty || qty === 0 || !rate || rate === 0 || !amount || amount === 0) {
             return res.status(400).json({
@@ -32,6 +34,100 @@ const addCollection = async (req, res) => {
             });
         }
 
+       if (isChanged && isChanged === "true")
+        {
+            let searchCriteria;
+            
+            let nextCollection
+
+            if (shift === 'Morning') {
+                // If the current collection is in the "Morning" shift, search for the "Evening" shift on or after the same date.
+                searchCriteria = {
+                    $or: [
+                        {
+                            $expr: {
+                                $and: [
+                                    { $eq: [{ $dayOfMonth: '$collectionDate' }, { $dayOfMonth: formattedDate }] },
+                                    { $eq: [{ $month: '$collectionDate' }, { $month: formattedDate }] },
+                                    { $eq: [{ $year: '$collectionDate' }, { $year: formattedDate }] }
+                                ]
+                            },
+                            shift: 'Evening'
+                        },
+                        {
+                            collectionDate: { $gt: collectionDate }
+                        }
+                    ]
+                };
+            } else if (shift === 'Evening') {
+                // If the current collection is in the "Evening" shift, search for any "Morning" shift on or after the same date.
+                searchCriteria = {
+                    collectionDate: { $gt: collectionDate },
+                };
+            }
+
+
+            const findCollectionAndUpdateLedger = async () => {
+                try {
+                    nextCollection = await Collection.findOne(searchCriteria)
+                        .sort({ collectionDate: 1, shift: 1 }); // Sort by date and shift in ascending order
+
+                    const ledger = await Ledger.findOne({collectionId: nextCollection._id})
+                    // for the new data 
+                    previousBalance = ledger.previousBalance 
+            
+                    // updation of upcoming ledgers
+                    let updateCriteria
+                    if (shift === 'Morning') {
+                        // If the current collection is in the "Morning" shift, search for the "Evening" shift on or after the same date.
+                        updateCriteria = {
+                            userId: user._id,
+                            $or: [
+                                {
+                                    $expr: {
+                                        $and: [
+                                            { $eq: [{ $dayOfMonth: '$date' }, { $dayOfMonth: formattedDate }] },
+                                            { $eq: [{ $month: '$date' }, { $month: formattedDate }] },
+                                            { $eq: [{ $year: '$date' }, { $year: formattedDate }] }
+                                        ]
+                                    },
+                                    shift: 'Evening'
+                                },
+                                {
+                                    date: { $gt: collectionDate }
+                                }
+                            ]
+                        };
+                    } else if (shift === 'Evening') {
+                        // If the current collection is in the "Evening" shift, search for any "Morning" shift on or after the same date.
+                        updateCriteria = {
+                            userId: user._id,
+                            date: { $gt: collectionDate },
+                        };
+                    }
+
+                    // Update all the matching ledger documents
+                    const update = {
+                        $inc: { previousBalance: amount } // Increment previousBalance by the amount
+                    };
+
+                    const ledgers = await Ledger.updateMany(updateCriteria, update)
+
+                    console.log(ledgers)
+
+                } catch (err) {
+                    console.error('Error:', err);
+                }
+            };
+            
+            findCollectionAndUpdateLedger();
+        }
+        else
+        {
+            previousBalance = Number(farmer.credit) - Number(farmer.debit);
+        } 
+
+
         const collection = await Collection.create({
             farmerId,
             farmerName: farmer.farmerName,
@@ -45,7 +141,7 @@ const addCollection = async (req, res) => {
             shift
         });
 
-        let previousBalance = Number(farmer.credit) - Number(farmer.debit);
+        // let previousBalance = Number(farmer.credit) - Number(farmer.debit);
 
         await Ledger.create({
             farmerId,
@@ -153,6 +249,7 @@ const updateCollection = async (req, res) => {
     try {
         const { id, username } = req.params;
         const { farmerId, collectionDate, qty, fat, snf, rate, amount, shift } = req.body;
+        const formattedDate = new Date(collectionDate)
 
         const user = await User.findOne({ username })
 
@@ -177,6 +274,57 @@ const updateCollection = async (req, res) => {
         if (amount) {
             farmer.credit = farmer.credit - Number(collection.amount) + Number(amount);
         }
+
+        // update previous balances
+
+        const findCollectionAndUpdateLedger = async () => {
+            try {
+        
+                // updation of upcoming ledgers
+                let updateCriteria
+                if (shift === 'Morning') {
+                    // If the current collection is in the "Morning" shift, search for the "Evening" shift on or after the same date.
+                    updateCriteria = {
+                        userId: user._id,
+                        $or: [
+                            {
+                                $expr: {
+                                    $and: [
+                                        { $eq: [{ $dayOfMonth: '$date' }, { $dayOfMonth: formattedDate }] },
+                                        { $eq: [{ $month: '$date' }, { $month: formattedDate }] },
+                                        { $eq: [{ $year: '$date' }, { $year: formattedDate }] }
+                                    ]
+                                },
+                                shift: 'Evening'
+                            },
+                            {
+                                date: { $gt: collectionDate }
+                            }
+                        ]
+                    };
+                } else if (shift === 'Evening') {
+                    // If the current collection is in the "Evening" shift, search for any "Morning" shift on or after the same date.
+                    updateCriteria = {
+                        userId: user._id,
+                        date: { $gt: collectionDate },
+                    };
+                }
+
+                // Update all the matching ledger documents
+                const update = {
+                    $inc: { previousBalance: amount - collection.amount } // Increment previousBalance by the amount
+                };
+
+                const ledgers = await Ledger.updateMany(updateCriteria, update)
+
+                console.log(ledgers)
+
+            } catch (err) {
+                console.error('Error:', err);
+            }
+        };
+        
+        findCollectionAndUpdateLedger();
 
         
         if (collection.shift !== shift || compareDate(collection.collectionDate, collectionDate) === false) {
@@ -352,6 +500,57 @@ const deleteCollection = async (req, res) => {
         if (!collection) {
             return res.status(404).json({ message: 'Collection not found' });
         }
+
+        // update previous balances
+
+        const findCollectionAndUpdateLedger = async () => {
+            try {
+        
+                // updation of upcoming ledgers
+                let updateCriteria
+                if (shift === 'Morning') {
+                    // If the current collection is in the "Morning" shift, search for the "Evening" shift on or after the same date.
+                    updateCriteria = {
+                        userId: user._id,
+                        $or: [
+                            {
+                                $expr: {
+                                    $and: [
+                                        { $eq: [{ $dayOfMonth: '$date' }, { $dayOfMonth: formattedDate }] },
+                                        { $eq: [{ $month: '$date' }, { $month: formattedDate }] },
+                                        { $eq: [{ $year: '$date' }, { $year: formattedDate }] }
+                                    ]
+                                },
+                                shift: 'Evening'
+                            },
+                            {
+                                date: { $gt: date }
+                            }
+                        ]
+                    };
+                } else if (shift === 'Evening') {
+                    // If the current collection is in the "Evening" shift, search for any "Morning" shift on or after the same date.
+                    updateCriteria = {
+                        userId: user._id,
+                        date: { $gt: date },
+                    };
+                }
+
+                // Update all the matching ledger documents
+                const update = {
+                    $inc: { previousBalance: -collection.amount } // Increment previousBalance by the amount
+                };
+
+                const ledgers = await Ledger.updateMany(updateCriteria, update)
+
+                console.log(ledgers)
+
+            } catch (err) {
+                console.error('Error:', err);
+            }
+        };
+        
+        findCollectionAndUpdateLedger();
 
         await Collection.findByIdAndDelete(id);
 
