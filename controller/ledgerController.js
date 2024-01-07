@@ -22,19 +22,41 @@ const getAllLedgerEntriesForRangeByAdmin = async (req, res) => {
         formattedStartDate.setHours(0, 0, 0, 0);
         formattedEndDate.setHours(23, 59, 59, 59);
 
-        const ledgerEntries = await Ledger.find({
-            $and: [
-                { userId: user._id },
-                {
+        const ledgerEntries = await Ledger.aggregate([
+            {
+              $match: {
                     $expr: {
-                        $and: [
-                            { $gte: ['$date', formattedStartDate] },
-                            { $lt: ['$date', formattedEndDate] },
-                        ],
+                      $and: [
+                        {
+                          $gte: [
+                            "$date",
+                            formattedStartDate
+                          ],
+                        },
+                        {
+                          $lt: ["$date", formattedEndDate],
+                        },
+                      ],
                     },
-                },
-            ],
-        }).sort({ date: 1 });
+              },
+            },
+            {
+              $lookup: {
+                from: "collections",
+                localField: "collectionId",
+                foreignField: "_id",
+                as: "collection",
+              },
+            },
+            {
+              $unwind: "$collection",
+            },
+            {
+              $sort: {
+                date: 1,
+              },
+            },
+          ]);
 
         res.status(200).json(ledgerEntries);
     } catch (error) {
@@ -73,19 +95,41 @@ const getAllLedgerEntriesForRange = async (req, res) => {
             return res.status(403).json({ message: 'User not allowed to access ledger' });
         }
 
-        const ledgerEntries = await Ledger.find({
-            $and: [
-                { userId: user._id },
-                {
+        const ledgerEntries = await Ledger.aggregate([
+            {
+              $match: {
                     $expr: {
-                        $and: [
-                            { $gte: ['$date', formattedStartDate] },
-                            { $lt: ['$date', formattedEndDate] },
-                        ],
+                      $and: [
+                        {
+                          $gte: [
+                            "$date",
+                            formattedStartDate
+                          ],
+                        },
+                        {
+                          $lt: ["$date", formattedEndDate],
+                        },
+                      ],
                     },
-                },
-            ],
-        }).sort({ date: 1 });
+              },
+            },
+            {
+              $lookup: {
+                from: "collections",
+                localField: "collectionId",
+                foreignField: "_id",
+                as: "collection",
+              },
+            },
+            {
+              $unwind: "$collection",
+            },
+            {
+              $sort: {
+                date: 1,
+              },
+            },
+          ]);
         res.status(200).json(ledgerEntries);
     } catch (error) {
         console.log(error);
